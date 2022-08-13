@@ -1,0 +1,2 @@
+win10toast==0.9
+PyYAML==6.0

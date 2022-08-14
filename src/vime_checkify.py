@@ -3,14 +3,17 @@
     - Оповещения о боссах
     - Настройки, возможность их изменять с помощью команд
 """
-import re
 from time import time as get_time
 from time import sleep
 from datetime import time, datetime
 from pathlib import Path
 from os import path, listdir
+from sys import exit
+import re
 import gzip
+import platform
 from win10toast import ToastNotifier
+from win11toast import toast
 import yaml
 
 LOG_PATH = path.join(Path.home(), "AppData", "Roaming", ".vimeworld", "minigames", "logs")
@@ -39,7 +42,6 @@ def processing_log(file, boss_respawn, bosses_cooldown, nickname=""):
     :param nickname: Никнейм аккаунта в запущенном лаунчере
     :return: True or False - были ли изменены настройки
     """
-    toast = ToastNotifier()
     settings_changed = False
     boss_pattern = re.compile(r"\[(\d\d:\d\d:\d\d)\] \[Client thread/INFO\]: "
                               r"\[CHAT\] ([А-Яа-яЁё ]+) был[аи]? повержен[ыа]? за")
@@ -58,7 +60,7 @@ def processing_log(file, boss_respawn, bosses_cooldown, nickname=""):
             params = match.group(3)
             if datetime.now().timestamp() - command_time <= 120:
                 if command not in COMMAND_LIST:
-                    toast.show_toast("Ooops...", "Неправильная команда", error_ico_path, 5)
+                    show_toast("Ooops...", "Неправильная команда", error_ico_path, 5)
                     continue
                 if command == "d":
                     settings_changed = change_duration_notification(params, error_ico_path,
@@ -83,11 +85,10 @@ def launch_boss_notifications(boss_respawn, blacklist, notification_duration):
     :param notification_duration: Длительность одного оповещения в секундах
     :return:
     """
-    toast = ToastNotifier()
     for boss, respawn_time in boss_respawn.items():
-        print(boss, datetime.fromtimestamp(respawn_time).strftime("%H:%M:%S"))
         if boss not in blacklist and get_time() >= respawn_time:
-            toast.show_toast("Босс", boss, path.join("icons", f"{boss}.ico"), notification_duration)
+            print(boss, datetime.fromtimestamp(respawn_time).strftime("%H:%M:%S"))
+            show_toast("Босс", boss, path.join("icons", f"{boss}.ico"), notification_duration)
             sleep(0.1)
 
 
@@ -127,10 +128,9 @@ def change_duration_notification(params, error_ico_path, success_ico_path):
     :param success_ico_path: Путь к иконке успеха
     :return: True - параметры изменены
     """
-    toast = ToastNotifier()
     if not params.isdigit():
-        toast.show_toast("Ooops...", "Длительность оповещения должна быть цифрой "
-                                     "(количество секунд)", error_ico_path, 5)
+        show_toast("Ooops...", "Длительность оповещения должна быть цифрой (количество секунд)",
+                   error_ico_path, 5)
         return False
     params = int(params)
     with open("settings.yaml", encoding="windows-1251") as config:
@@ -138,7 +138,7 @@ def change_duration_notification(params, error_ico_path, success_ico_path):
     settings["notification_duration"] = params
     with open("settings.yaml", "w", encoding="windows-1251") as config:
         yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
-    toast.show_toast("Успешно!", "Длительность оповещения изменена", success_ico_path, 3)
+    show_toast("Успешно!", "Длительность оповещения изменена", success_ico_path, 3)
     return True
 
 
@@ -150,18 +150,17 @@ def add_boss(params, error_ico_path, success_ico_path):
     :param success_ico_path: Путь к иконке успеха
     :return: True - параметры изменены
     """
-    toast = ToastNotifier()
     params = params.rsplit(" ", 1)
     if not params[1].isdigit():
-        toast.show_toast("Ooops...", "Кулдаун респавна босса должен быть цифрой "
-                                     "(количество минут)", error_ico_path, 5)
+        show_toast("Ooops...", "Кулдаун респавна босса должен быть цифрой (количество минут)",
+                   error_ico_path, 5)
         return False
     with open("settings.yaml", encoding="windows-1251") as config:
         settings = yaml.safe_load(config)
     settings["bosses_cooldown"][params[0]] = int(params[1])
     with open("settings.yaml", "w", encoding="windows-1251") as config:
         yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
-    toast.show_toast("Успешно!", "Босс добавлен", success_ico_path, 3)
+    show_toast("Успешно!", "Босс добавлен", success_ico_path, 3)
     return True
 
 
@@ -174,12 +173,11 @@ def skip_boss(params, error_ico_path, success_ico_path, boss_respawn):
     :param boss_respawn: Словарь, ключ - имя босса, значение - время его следующего респавна
     :return: True - параметры изменены
     """
-    toast = ToastNotifier()
     if params not in boss_respawn:
-        toast.show_toast("Ooops...", "Указано некорректное имя босса", error_ico_path, 5)
+        show_toast("Ooops...", "Указано некорректное имя босса", error_ico_path, 5)
         return False
     del boss_respawn[params]
-    toast.show_toast("Успешно!", "Босс пропущен", success_ico_path, 3)
+    show_toast("Успешно!", "Босс пропущен", success_ico_path, 3)
     return True
 
 
@@ -190,14 +188,13 @@ def add_to_blacklist(params, success_ico_path):
     :param success_ico_path: Путь к иконке успеха
     :return: True - параметры изменены
     """
-    toast = ToastNotifier()
     params = params.split(",")
     with open("settings.yaml", encoding="windows-1251") as config:
         settings = yaml.safe_load(config)
     settings["blacklist"] += params
     with open("settings.yaml", "w", encoding="windows-1251") as config:
         yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
-    toast.show_toast("Успешно!", "Чёрный список обновлён", success_ico_path, 3)
+    show_toast("Успешно!", "Чёрный список обновлён", success_ico_path, 3)
     return True
 
 
@@ -208,14 +205,13 @@ def remove_from_blacklist(params, success_ico_path):
     :param success_ico_path: Путь к иконке успеха
     :return: True - параметры изменены
     """
-    toast = ToastNotifier()
     params = params.split(",")
     with open("settings.yaml", encoding="windows-1251") as config:
         settings = yaml.safe_load(config)
     settings["blacklist"] = [name for name in settings["blacklist"] if name not in params]
     with open("settings.yaml", "w", encoding="windows-1251") as config:
         yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
-    toast.show_toast("Успешно!", "Чёрный список обновлён", success_ico_path, 3)
+    show_toast("Успешно!", "Чёрный список обновлён", success_ico_path, 3)
     return True
 
 
@@ -232,11 +228,21 @@ def processing_line_with_boss(match, boss_respawn, bosses_cooldown, error_ico_pa
     kill_time = datetime.combine(datetime.now().date(), kill_time).timestamp()
     name = match.group(2)
     if name not in bosses_cooldown:
-        toast = ToastNotifier()
-        toast.show_toast("Ooops...", f"Босса '{name}' нет в списке. Добавьте его",
-                         error_ico_path, 5)
+        show_toast("Ooops...", f"Босса '{name}' нет в списке. Добавьте его", error_ico_path, 5)
     else:
         boss_respawn[name] = kill_time + bosses_cooldown[name]
+
+
+def show_toast(title="", message="", icon_path="", duration=3):
+    os = platform.system() + platform.release()
+    if os == "Windows10":
+        ToastNotifier().show_toast(title, message, icon_path, duration)
+    elif os == "Windows11":
+        toast(title, message, icon=icon_path, duration=duration)
+    else:
+        print("Извините, ваша операционная система не поддерживается")
+        sleep(1)
+        exit()
 
 
 def main():

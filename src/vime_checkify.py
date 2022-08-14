@@ -42,14 +42,14 @@ def processing_log(file, boss_respawn, bosses_cooldown, nickname=""):
     toast = ToastNotifier()
     settings_changed = False
     boss_pattern = re.compile(r"\[(\d\d:\d\d:\d\d)\] \[Client thread/INFO\]: "
-                              r"\[CHAT\] ([А-Яа-яЁё ]+) был[аи]? повержен[ыа]?")
+                              r"\[CHAT\] ([А-Яа-яЁё ]+) был[аи]? повержен[ыа]? за")
     command_pattern = re.compile(fr"\[(\d\d:\d\d:\d\d)\] \[Client thread/INFO\]: "
                                  fr"\[CHAT\] .*{nickname}.*: ~([-a-z+ ]+)([А-Яа-яЁё, \d]+)")
     error_ico_path = path.join("icons", "error.ico")
     success_ico_path = path.join("icons", "success.ico")
     for line in file:
         if "был" in line and (match := boss_pattern.match(line)):
-            processing_line_with_boss(match, boss_respawn, bosses_cooldown)
+            processing_line_with_boss(match, boss_respawn, bosses_cooldown, error_ico_path)
         if file.name.rsplit("\\", 1)[1] == "latest.log" and nickname in line and \
                 (match := command_pattern.match(line)):
             command_time = time.fromisoformat(match.group(1))
@@ -219,18 +219,24 @@ def remove_from_blacklist(params, success_ico_path):
     return True
 
 
-def processing_line_with_boss(match, boss_respawn, bosses_cooldown):
+def processing_line_with_boss(match, boss_respawn, bosses_cooldown, error_ico_path):
     """
     Функция, обрабатывающая строку с информацией о убийстве босса
     :param match: Найденное совпадение в строке с регулярным выражением
     :param boss_respawn: Словарь, ключ - имя босса, значение - время его следующего респавна
     :param bosses_cooldown: Словарь, ключ - имя босса, значение - его кулдаун
+    :param error_ico_path: Путь к иконке ошибки
     :return:
     """
     kill_time = time.fromisoformat(match.group(1))
     kill_time = datetime.combine(datetime.now().date(), kill_time).timestamp()
     name = match.group(2)
-    boss_respawn[name] = kill_time + bosses_cooldown[name]
+    if name not in bosses_cooldown:
+        toast = ToastNotifier()
+        toast.show_toast("Ooops...", f"Босса '{name}' нет в списке. Добавьте его",
+                         error_ico_path, 5)
+    else:
+        boss_respawn[name] = kill_time + bosses_cooldown[name]
 
 
 def main():

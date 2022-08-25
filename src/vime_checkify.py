@@ -1,13 +1,15 @@
 """
 Приложение для режима Prison сервера VimeWorld со следующим функционалом:
     - Оповещения о боссах
+    - Оповещения о службах в церкви
+    - Оповещения об обновлении шахт
     - Настройки, возможность их изменять с помощью команд
 """
 from time import time as get_time
 from time import sleep
 from datetime import time, datetime
 from pathlib import Path
-from os import path, listdir
+from os import path, listdir, system
 from sys import exit
 import re
 import gzip
@@ -15,17 +17,29 @@ import platform
 from win10toast import ToastNotifier
 from win11toast import toast
 import yaml
+import pytz
 
 LOG_PATH = path.join(Path.home(), "AppData", "Roaming", ".vimeworld", "minigames", "logs")
-COMMAND_LIST = {"d", "b add", "b skip", "bl add", "bl remove"}
+OS = platform.system() + platform.release()
+RAINBOW_NAMES = {"Королевский зомби": "\033[37mКоролевский зомби\033[0m",
+                 "Холуй": "\033[37mХолуй\033[0m",
+                 "Сточный слизень": "\033[32mСточный слизень\033[0m",
+                 "Фенрир": "\033[31mФенрир\033[0m",
+                 "Все Всадники апокалипсиса": "\033[37mВсе Всадники апокалипсиса\033[0m",
+                 "Матка": "\033[32mМатка\033[0m",
+                 "Коровка из Коровёнки": "\033[31mК\033[33mор\033[32mо\033[36mв\033[34mк\033[33mа \033[31mи\033[33mз К\033[32mо\033[36mр\033[34mо\033[35mв\033[31mё\033[33mнк\033[32mи\033[0m",
+                 "Левиафан": "\033[33mЛевиафан\033[0m", "Йети": "\033[36mЙети\033[0m",
+                 "Житель края": "\033[35mЖитель края\033[0m",
+                 "Небесный владыка": "\033[34mНебесный владыка\033[0m",
+                 "Хранитель подводного мира": "\033[36mХранитель подводного мира\033[0m"}
 
 
 def processing_old_logs(boss_respawn, bosses_cooldown):
     """
-    Функция, обрабатывающая старые log-файлы для обновления информации о боссах и изменения настроек
+    Функция, обрабатывающая старые log-файлы для обновления информации о боссах
     :param boss_respawn: Словарь, ключ - имя босса, значение - время его следующего респавна
     :param bosses_cooldown: Словарь, ключ - имя босса, значение - его кулдаун
-    :return:
+    :return: None
     """
     log_gz_names = (filename for filename in listdir(LOG_PATH) if validate_gz(filename))
     for log_gz_name in log_gz_names:
@@ -40,13 +54,13 @@ def processing_log(file, boss_respawn, bosses_cooldown, nickname=""):
     :param boss_respawn: Словарь, ключ - имя босса, значение - время его следующего респавна
     :param bosses_cooldown: Словарь, ключ - имя босса, значение - его кулдаун
     :param nickname: Никнейм аккаунта в запущенном лаунчере
-    :return: True or False - были ли изменены настройки
+    :return: bool - были ли изменены настройки
     """
     settings_changed = False
     boss_pattern = re.compile(r"\[(\d\d:\d\d:\d\d)\] \[Client thread/INFO\]: "
                               r"\[CHAT\] ([А-Яа-яЁё ]+) был[аи]? повержен[ыа]? за")
     command_pattern = re.compile(fr"\[(\d\d:\d\d:\d\d)\] \[Client thread/INFO\]: "
-                                 fr"\[CHAT\] .*{nickname}.*: ~([-a-z+ ]+)([А-Яа-яЁё, \d]+)")
+                                 fr"\[CHAT\] .*{nickname}.*[:>] ~([-a-z+ ]+)([)(А-Яа-яЁё, \d]+)")
     error_ico_path = path.join("icons", "error.ico")
     success_ico_path = path.join("icons", "success.ico")
     for line in file:
@@ -59,44 +73,59 @@ def processing_log(file, boss_respawn, bosses_cooldown, nickname=""):
             command = match.group(2)[:-1]
             params = match.group(3)
             if datetime.now().timestamp() - command_time <= 120:
-                if command not in COMMAND_LIST:
-                    show_toast("Ooops...", "Неправильная команда", error_ico_path, 5)
-                    continue
-                if command == "d":
-                    settings_changed = change_duration_notification(params, error_ico_path,
-                                                                    success_ico_path)
-                elif command == "b add":
-                    settings_changed = add_boss(params, error_ico_path, success_ico_path)
-                elif command == "b skip":
-                    settings_changed = skip_boss(params, error_ico_path, success_ico_path,
-                                                 boss_respawn)
-                elif command == "bl add":
-                    settings_changed = add_to_blacklist(params, success_ico_path)
-                elif command == "bl remove":
-                    settings_changed = remove_from_blacklist(params, success_ico_path)
+                match command:
+                    case "d":
+                        settings_changed = change_duration_notification(params, error_ico_path,
+                                                                        success_ico_path)
+                    case "b add":
+                        settings_changed = add_boss(params, error_ico_path, success_ico_path)
+                    case "b skip":
+                        settings_changed = skip_boss(params, error_ico_path, success_ico_path,
+                                                     boss_respawn)
+                    case "bl add":
+                        settings_changed = add_to_blacklist(params, success_ico_path)
+                    case "bl remove":
+                        settings_changed = remove_from_blacklist(params, success_ico_path)
+                    case "m":
+                        settings_changed = set_timer_to_mine(params, error_ico_path,
+                                                             success_ico_path)
+                    case _:
+                        show_toast(OS, "Ooops...", "Неправильная команда", error_ico_path, 5)
+                        continue
     return settings_changed
 
 
-def launch_boss_notifications(boss_respawn, blacklist, notification_duration):
+def launch_boss_notifications(boss_respawn, blacklist, notification_duration, colored,
+                              rainbow_names):
     """
     Функция, создающая и запускающая всплывающие оповещения о боссах
     :param boss_respawn: Словарь, ключ - имя босса, значение - время его следующего респавна
     :param blacklist: Список боссов, о которых не будут присылаться оповещения
     :param notification_duration: Длительность одного оповещения в секундах
-    :return:
+    :param colored: Булевое значение, нужно ли использовать цветные названия
+    :param rainbow_names: Словарь, ключ - обычное название, значение - цветное название
+    :return: None
     """
+    for_print = []
     for boss, respawn_time in boss_respawn.items():
+        for_print.append([boss, respawn_time])
         if boss not in blacklist and get_time() >= respawn_time:
-            print(boss, datetime.fromtimestamp(respawn_time).strftime("%H:%M:%S"))
-            show_toast("Босс", boss, path.join("icons", f"{boss}.ico"), notification_duration)
+            show_toast(OS, "Босс", boss, path.join("icons", f"{boss}.ico"),
+                       notification_duration)
             sleep(0.1)
+    for_print.sort(key=lambda pair: pair[1])
+    for pair in for_print:
+        if colored:
+            pair[0] = rainbow_names[pair[0]]
+        print(pair[0], "заспавнится примерно в",
+              datetime.fromtimestamp(pair[1]).strftime("%H:%M:%S"))
 
 
 def validate_gz(filename):
     """
     Функция, проверяющая, что файл является архивным с расширением GZ и создан в сегодняшний день
-    :param filename: Название файла, который валидируется
-    :return: True or False - удовлетворяет ли название требованиям
+    :param filename: Название валидируемого файла
+    :return: bool - удовлетворяет ли название требованиям
     """
     body, tail = path.splitext(filename)
     if not body.startswith(datetime.now().strftime("%Y-%m-%d")):
@@ -109,7 +138,8 @@ def validate_gz(filename):
 def load_settings_variables():
     """
     Функция, загружающая и возвращающая все переменные из файла с настройками
-    :return: Кортеж с переменными: словарь босс-кулдаун, чёрный список и длительность оповещения
+    :return: Кортеж с переменными: словарь босс-кулдаун, чёрный список, длительность оповещения,
+    словарь шахта-кулдаун, булевое значение цветные ли названия, список шахт для оповещения
     """
     with open("settings.yaml", encoding="windows-1251") as file:
         settings = yaml.safe_load(file)
@@ -117,7 +147,13 @@ def load_settings_variables():
     bosses_cooldown = {name: cooldown * 60 for name, cooldown in bosses_cooldown.items()}
     blacklist = settings["blacklist"]
     notification_duration = settings["notification_duration"]
-    return bosses_cooldown, blacklist, notification_duration
+    mines_cooldown = settings["mines_cooldown"]
+    colored = settings["colored"]
+    if "mines_notifications" in settings:
+        mines_notifications = settings["mines_notifications"]
+        return bosses_cooldown, blacklist, notification_duration, mines_cooldown, \
+               colored, mines_notifications
+    return bosses_cooldown, blacklist, notification_duration, mines_cooldown, colored
 
 
 def change_duration_notification(params, error_ico_path, success_ico_path):
@@ -126,10 +162,10 @@ def change_duration_notification(params, error_ico_path, success_ico_path):
     :param params: Полученные от пользователя параметры команды
     :param error_ico_path: Путь к иконке ошибки
     :param success_ico_path: Путь к иконке успеха
-    :return: True - параметры изменены
+    :return: bool - изменены ли параметры
     """
     if not params.isdigit():
-        show_toast("Ooops...", "Длительность оповещения должна быть цифрой (количество секунд)",
+        show_toast(OS, "Ooops...", "Длительность оповещения должна быть цифрой (количество секунд)",
                    error_ico_path, 5)
         return False
     params = int(params)
@@ -138,7 +174,7 @@ def change_duration_notification(params, error_ico_path, success_ico_path):
     settings["notification_duration"] = params
     with open("settings.yaml", "w", encoding="windows-1251") as config:
         yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
-    show_toast("Успешно!", "Длительность оповещения изменена", success_ico_path, 3)
+    show_toast(OS, "Успешно!", "Длительность оповещения изменена", success_ico_path, 3)
     return True
 
 
@@ -148,11 +184,11 @@ def add_boss(params, error_ico_path, success_ico_path):
     :param params: Полученные от пользователя параметры команды
     :param error_ico_path: Путь к иконке ошибки
     :param success_ico_path: Путь к иконке успеха
-    :return: True - параметры изменены
+    :return: bool - изменены ли параметры
     """
     params = params.rsplit(" ", 1)
     if not params[1].isdigit():
-        show_toast("Ooops...", "Кулдаун респавна босса должен быть цифрой (количество минут)",
+        show_toast(OS, "Ooops...", "Кулдаун респавна босса должен быть цифрой (количество минут)",
                    error_ico_path, 5)
         return False
     with open("settings.yaml", encoding="windows-1251") as config:
@@ -160,7 +196,7 @@ def add_boss(params, error_ico_path, success_ico_path):
     settings["bosses_cooldown"][params[0]] = int(params[1])
     with open("settings.yaml", "w", encoding="windows-1251") as config:
         yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
-    show_toast("Успешно!", "Босс добавлен", success_ico_path, 3)
+    show_toast(OS, "Успешно!", "Босс добавлен", success_ico_path, 3)
     return True
 
 
@@ -171,14 +207,16 @@ def skip_boss(params, error_ico_path, success_ico_path, boss_respawn):
     :param error_ico_path: Путь к иконке ошибки
     :param success_ico_path: Путь к иконке успеха
     :param boss_respawn: Словарь, ключ - имя босса, значение - время его следующего респавна
-    :return: True - параметры изменены
+    :return: bool - изменены ли параметры
     """
-    if params not in boss_respawn:
-        show_toast("Ooops...", "Указано некорректное имя босса", error_ico_path, 5)
-        return False
-    del boss_respawn[params]
-    show_toast("Успешно!", "Босс пропущен", success_ico_path, 3)
-    return True
+    params = [boss.strip() for boss in params.split(",")]
+    for boss in params:
+        if boss not in boss_respawn:
+            show_toast(OS, "Ooops...", "Указано некорректное имя босса", error_ico_path, 5)
+            return False
+        del boss_respawn[boss]
+    show_toast(OS, "Успешно!", "Боссы пропущены", success_ico_path, 3)
+    return False
 
 
 def add_to_blacklist(params, success_ico_path):
@@ -191,10 +229,13 @@ def add_to_blacklist(params, success_ico_path):
     params = params.split(",")
     with open("settings.yaml", encoding="windows-1251") as config:
         settings = yaml.safe_load(config)
-    settings["blacklist"] += params
+    if "blacklist" not in params:
+        settings["blacklist"] = params
+    else:
+        settings["blacklist"] += params
     with open("settings.yaml", "w", encoding="windows-1251") as config:
         yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
-    show_toast("Успешно!", "Чёрный список обновлён", success_ico_path, 3)
+    show_toast(OS, "Успешно!", "Чёрный список обновлён", success_ico_path, 3)
     return True
 
 
@@ -211,57 +252,142 @@ def remove_from_blacklist(params, success_ico_path):
     settings["blacklist"] = [name for name in settings["blacklist"] if name not in params]
     with open("settings.yaml", "w", encoding="windows-1251") as config:
         yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
-    show_toast("Успешно!", "Чёрный список обновлён", success_ico_path, 3)
+    show_toast(OS, "Успешно!", "Чёрный список обновлён", success_ico_path, 3)
     return True
 
 
 def processing_line_with_boss(match, boss_respawn, bosses_cooldown, error_ico_path):
     """
-    Функция, обрабатывающая строку с информацией о убийстве босса
+    Функция, обрабатывающая строку с информацией об убийстве босса
     :param match: Найденное совпадение в строке с регулярным выражением
     :param boss_respawn: Словарь, ключ - имя босса, значение - время его следующего респавна
     :param bosses_cooldown: Словарь, ключ - имя босса, значение - его кулдаун
     :param error_ico_path: Путь к иконке ошибки
-    :return:
+    :return: None
     """
     kill_time = time.fromisoformat(match.group(1))
     kill_time = datetime.combine(datetime.now().date(), kill_time).timestamp()
     name = match.group(2)
     if name not in bosses_cooldown:
-        show_toast("Ooops...", f"Босса '{name}' нет в списке. Добавьте его", error_ico_path, 5)
+        show_toast(OS, "Ooops...", f"Босса '{name}' нет в списке. Добавьте его", error_ico_path, 5)
     else:
         boss_respawn[name] = kill_time + bosses_cooldown[name]
 
 
-def show_toast(title="", message="", icon_path="", duration=3):
-    os = platform.system() + platform.release()
-    if os == "Windows10":
-        ToastNotifier().show_toast(title, message, icon_path, duration)
-    elif os == "Windows11":
-        toast(title, message, icon=icon_path, duration=duration)
+def show_toast(os, title="", message="", icon_path="", duration=3):
+    """
+    Функция, выводящая всплывающее уведомление
+    :param os: Операционная система, на которой вызывается уведомление
+    :param title: Заголовок уведомления
+    :param message: Текст уведомления
+    :param icon_path: Путь к иконке уведомления
+    :param duration: Длительность уведомления
+    :return: None
+    """
+    match os:
+        case "Windows10":
+            ToastNotifier().show_toast(title, message, icon_path, duration)
+        case "Windows11":
+            toast(title, message, icon=icon_path, duration=duration)
+        case _:
+            print("Извините, ваша операционная система не поддерживается")
+            sleep(3)
+            exit()
+
+
+def remind_about_service(notification_duration):
+    """
+    Функция, выводящая всплывающие уведомления о службах в церкви
+    :param notification_duration: Длительность уведомления
+    :return: None
+    """
+    if datetime.now(pytz.timezone("Europe/Moscow")).strftime("%H:%M:%S") in {"06:56:00",
+                                                                             "12:56:00",
+                                                                             "18:56:00",
+                                                                             "00:56:00"}:
+        show_toast(OS, "Служба", "Открылась запись на служение!",
+                   path.join("icons", "Служба.ico"), notification_duration)
+
+
+def remind_about_mine(cooldown, stopwatch, name, notification_duration):
+    """
+    Функция, оповещающая об обновлении шахты за 3 секунды до этого
+    :param cooldown: Кулдаун шахты в секундах
+    :param stopwatch: Секундомер, считающий до кулдауна
+    :param name: Название шахты
+    :param notification_duration: Длительность уведомления
+    :return: Количество секунд на секундомере
+    """
+    if stopwatch == (cooldown - 3):
+        show_toast(OS, "Шахта", f'Шахта "{name}" обновилась',
+                   path.join("icons", f"{name}.ico"), notification_duration)
+        return stopwatch + 1
+    if stopwatch == cooldown:
+        return 0
+    return stopwatch + 1
+
+
+def set_timer_to_mine(params, error_ico_path, success_ico_path):
+    """
+    Функция, обрабатывающая команду ~m. Добавляет шахту в список для оповещения
+    :param params: Полученные от пользователя параметры команды
+    :param error_ico_path: Путь к иконке ошибки
+    :param success_ico_path: Путь к иконке успеха
+    :return: bool - изменены ли параметры
+    """
+    with open("settings.yaml", encoding="windows-1251") as config:
+        settings = yaml.safe_load(config)
+    if params not in settings["mines_cooldown"]:
+        show_toast(OS, "Ooops...", "Неправильное название шахты", error_ico_path, 5)
+        return False
+    if "mines_notifications" not in settings:
+        settings["mines_notifications"] = [params]
     else:
-        print("Извините, ваша операционная система не поддерживается")
-        sleep(1)
-        exit()
+        settings["mines_notifications"] += [params]
+    with open("settings.yaml", "w", encoding="windows-1251") as config:
+        yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
+    show_toast(OS, "Успешно!", "Шахта добавлена", success_ico_path, 3)
+    return True
 
 
 def main():
     """
     Главная функция, связывающая весь функционал реализованных функций
-    :return:
+    :return: None
     """
+    system("color")
+    with open("settings.yaml", encoding="windows-1251") as config:
+        settings = yaml.safe_load(config)
+    if "mines_notifications" in settings:
+        del settings["mines_notifications"]
+    with open("settings.yaml", "w", encoding="windows-1251") as config:
+        yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
     boss_respawn = {}
-    bosses_cooldown, blacklist, notification_duration = load_settings_variables()
+    boss_notifications = 59
+    bosses_cooldown, blacklist, notification_duration, \
+    mines_cooldown, colored, *mines_notifications = load_settings_variables()
+    mines_stopwatches = {mine: 0 for mine in mines_cooldown}
     processing_old_logs(boss_respawn, bosses_cooldown)
     with open(path.join(LOG_PATH, "latest.log"), encoding='utf-8') as file:
         line = file.readline()
         nickname = line[line.find("Setting user: ") + 14:].rstrip()
         while True:
+            boss_notifications += 1
+            remind_about_service(notification_duration)
             if processing_log(file, boss_respawn, bosses_cooldown, nickname):
-                bosses_cooldown, blacklist, notification_duration = load_settings_variables()
-            print("-" * 60)
-            launch_boss_notifications(boss_respawn, blacklist, notification_duration)
-            sleep(60)
+                bosses_cooldown, blacklist, notification_duration, \
+                mines_cooldown, colored, *mines_notifications = load_settings_variables()
+            if mines_notifications:
+                for mine in mines_notifications[0]:
+                    mines_stopwatches[mine] = remind_about_mine(mines_cooldown[mine],
+                                                                mines_stopwatches[mine],
+                                                                mine, notification_duration)
+            if boss_notifications == 60:
+                print("-" * 57)
+                launch_boss_notifications(boss_respawn, blacklist, notification_duration,
+                                          colored, RAINBOW_NAMES)
+                boss_notifications = 0
+            sleep(1)
 
 
 if __name__ == "__main__":

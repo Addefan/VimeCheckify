@@ -26,7 +26,7 @@ __Примечание.__ Приложение скомпилировано в .
 __[pyinstaller](https://pyinstaller.org/en/v3.4/usage.html)__,
 установщик создан с помощью приложения __[Inno Setup](https://jrsoftware.org/isinfo.php)__.
 
-1. Загрузить [установщик](https://www.mediafire.com/file/l7qupsi2w6i0130/VimeCheckify.exe/file)
+1. Загрузить [установщик](https://www.mediafire.com/file/9flulq3e4xukozx/VimeCheckify.exe/file)
    и установить приложение
 2. Запустить приложение с помощью ярлыка
 
@@ -35,14 +35,15 @@ __[pyinstaller](https://pyinstaller.org/en/v3.4/usage.html)__,
 При первом запуске:
 
 1. Установить [Python](https://www.python.org/) версии не ниже 3.10
-2. Перейти с помощью консоли в папку, в которую склонируется проект
-3. Склонировать проект, прописав в консоли `git clone https://github.com/Addefan/VimeCheckify.git`
-4. Перейти в папку склонированного проекта, прописав в консоли `cd VimeCheckify`
-5. Создать виртуальную среду, прописав в консоли `python3 -m venv venv`
-6. Активировать виртуальную среду, прописав в консоли `venv\Scripts\activate`
-7. Установить необходимые библиотеки, прописав в консоли `pip install -r requirements.txt`
-8. Перейти в папку с кодом, прописав `cd src`
-9. Запустить приложение, прописав `python vime_checkify.py`
+2. Установить [Git](https://git-scm.com/)
+3. Перейти с помощью консоли в папку, в которую склонируется проект
+4. Склонировать проект, прописав в консоли `git clone https://github.com/Addefan/VimeCheckify.git`
+5. Перейти в папку склонированного проекта, прописав в консоли `cd VimeCheckify`
+6. Создать виртуальную среду, прописав в консоли `python -m venv venv`
+7. Активировать виртуальную среду, прописав в консоли `venv\Scripts\activate`
+8. Установить необходимые библиотеки, прописав в консоли `pip install -r requirements.txt`
+9. Перейти в папку с кодом, прописав `cd src`
+10. Запустить приложение, прописав `python vime_checkify.py`
 
 При последующих запусках:
 

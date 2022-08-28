@@ -254,10 +254,10 @@ def add_to_blacklist(params, success_ico_path, notification_duration):
     :param notification_duration: Длительность одного оповещения в секундах
     :return: True - параметры изменены
     """
-    params = params.split(",")
+    params = [boss.strip() for boss in params.split(",")]
     with open("settings.yaml", encoding="windows-1251") as config:
         settings = yaml.safe_load(config)
-    if "blacklist" not in params:
+    if "blacklist" not in settings:
         settings["blacklist"] = params
     else:
         settings["blacklist"] += params
@@ -275,7 +275,7 @@ def remove_from_blacklist(params, success_ico_path, notification_duration):
     :param notification_duration: Длительность одного оповещения в секундах
     :return: True - параметры изменены
     """
-    params = params.split(",")
+    params = [boss.strip() for boss in params.split(",")]
     with open("settings.yaml", encoding="windows-1251") as config:
         settings = yaml.safe_load(config)
     settings["blacklist"] = [name for name in settings["blacklist"] if name not in params]

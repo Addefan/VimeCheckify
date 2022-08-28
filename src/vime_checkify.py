@@ -306,21 +306,25 @@ def processing_line_with_boss(match, boss_respawn, bosses_cooldown, error_ico_pa
         boss_respawn[name] = kill_time + bosses_cooldown[name]
 
 
-def show_toast(os, title="", message="", icon_path="", duration=3):
+def show_toast(os, title="", message="", icon="", duration=3):
     """
     Функция, выводящая всплывающее уведомление
     :param os: Операционная система, на которой вызывается уведомление
     :param title: Заголовок уведомления
     :param message: Текст уведомления
-    :param icon_path: Путь к иконке уведомления
+    :param icon: Путь к иконке уведомления
     :param duration: Длительность уведомления
     :return: None
     """
     match os:
         case "Windows10":
-            ToastNotifier().show_toast(title, message, icon_path, duration)
+            ToastNotifier().show_toast(title, message, icon, duration)
         case "Windows11":
-            toast(title, message, icon=icon_path, duration=duration)
+            icon = {
+                "src": icon,
+                "placement": "appLogoOverride"
+            }
+            toast(title, message, icon=icon, duration=duration)
         case _:
             print("Извините, ваша операционная система не поддерживается")
             sleep(3)

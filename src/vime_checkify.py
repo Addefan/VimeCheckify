@@ -14,10 +14,11 @@ from sys import exit
 import re
 import gzip
 import platform
+from zoneinfo import ZoneInfo
+
 from win10toast import ToastNotifier
 from win11toast import toast
 import yaml
-import pytz
 
 LOG_PATH = path.join(
     Path.home(), "AppData", "Roaming", ".vimeworld", "minigames", "logs"
@@ -447,7 +448,7 @@ def remind_about_service(notification_duration):
     :param notification_duration: Длительность уведомления
     :return: None
     """
-    if datetime.now(pytz.timezone("Europe/Moscow")).strftime("%H:%M:%S") in {
+    if datetime.now(ZoneInfo("Europe/Moscow")).strftime("%H:%M:%S") in {
         "06:56:00",
         "12:56:00",
         "18:56:00",

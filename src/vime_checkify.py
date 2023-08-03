@@ -9,13 +9,10 @@ from time import time as get_time
 from time import sleep
 from datetime import time, datetime
 from os import system
-from sys import exit
 import re
 import gzip
 from zoneinfo import ZoneInfo
 
-from win10toast import ToastNotifier
-from win11toast import toast
 import yaml
 
 from src.constants import LOG_PATH, OS, RAINBOW_NAMES, ICONS_PATH
@@ -24,12 +21,11 @@ from src.notifier import Notifier
 NOTIFIER = Notifier()
 
 
-def processing_old_logs(boss_respawn, bosses_cooldown, notification_duration):
+def processing_old_logs(boss_respawn, bosses_cooldown):
     """
     Функция, обрабатывающая старые log-файлы для обновления информации о боссах
     :param boss_respawn: Словарь, ключ - имя босса, значение - время его следующего респавна
     :param bosses_cooldown: Словарь, ключ - имя босса, значение - его кулдаун
-    :param notification_duration: Длительность одного оповещения в секундах
     :return: None
     """
     log_gz_names = (
@@ -37,17 +33,14 @@ def processing_old_logs(boss_respawn, bosses_cooldown, notification_duration):
     )
     for log_gz_name in log_gz_names:
         with gzip.open(LOG_PATH / log_gz_name, "rt", encoding="utf-8") as file:
-            processing_log(file, boss_respawn, bosses_cooldown, notification_duration)
+            processing_log(file, boss_respawn, bosses_cooldown)
 
 
-def processing_log(
-    file, boss_respawn, bosses_cooldown, notification_duration, nickname=""
-):
+def processing_log(file, boss_respawn, bosses_cooldown, nickname=""):
     """
     Функция, обрабатывающая log-файл и обновляет информацию о боссах и изменяет настройки
     :param file: Открытый файл логов
     :param boss_respawn: Словарь, ключ - имя босса, значение - время его следующего респавна
-    :param notification_duration: Длительность одного оповещения в секундах
     :param bosses_cooldown: Словарь, ключ - имя босса, значение - его кулдаун
     :param nickname: Никнейм аккаунта в запущенном лаунчере
     :return: bool - были ли изменены настройки
@@ -68,7 +61,6 @@ def processing_log(
                 match,
                 boss_respawn,
                 bosses_cooldown,
-                notification_duration,
             )
         if (
             file.name.rsplit("\\", 1)[1] == "latest.log"
@@ -86,51 +78,39 @@ def processing_log(
                     case "d":
                         settings_changed = change_duration_notification(
                             params,
-                            notification_duration,
                         )
                     case "b add":
                         settings_changed = add_boss(
                             params,
-                            notification_duration,
                         )
                     case "b skip":
                         settings_changed = skip_boss(
                             params,
                             boss_respawn,
-                            notification_duration,
                         )
                     case "bl add":
-                        settings_changed = add_to_blacklist(
-                            params, notification_duration
-                        )
+                        settings_changed = add_to_blacklist(params)
                     case "bl remove":
-                        settings_changed = remove_from_blacklist(
-                            params, notification_duration
-                        )
+                        settings_changed = remove_from_blacklist(params)
                     case "m":
                         settings_changed = set_timer_to_mine(
                             params,
-                            notification_duration,
                         )
                     case _:
                         NOTIFIER.show_toast(
                             "Ooops...",
                             "Неправильная команда",
                             NOTIFIER.error_ico_path,
-                            notification_duration,
                         )
                         continue
     return settings_changed
 
 
-def launch_boss_notifications(
-    boss_respawn, blacklist, notification_duration, colored, rainbow_names
-):
+def launch_boss_notifications(boss_respawn, blacklist, colored, rainbow_names):
     """
     Функция, создающая и запускающая всплывающие оповещения о боссах
     :param boss_respawn: Словарь, ключ - имя босса, значение - время его следующего респавна
     :param blacklist: Список боссов, о которых не будут присылаться оповещения
-    :param notification_duration: Длительность одного оповещения в секундах
     :param colored: Булевое значение, нужно ли использовать цветные названия
     :param rainbow_names: Словарь, ключ - обычное название, значение - цветное название
     :return: None
@@ -143,7 +123,6 @@ def launch_boss_notifications(
                 "Босс",
                 boss,
                 ICONS_PATH / f"{boss}.ico",
-                notification_duration,
             )
             sleep(0.1)
     for_print.sort(key=lambda pair: pair[1])
@@ -211,11 +190,10 @@ def load_settings_variables():
     return bosses_cooldown, blacklist, notification_duration, mines_cooldown, colored
 
 
-def change_duration_notification(params, notification_duration):
+def change_duration_notification(params):
     """
     Функция, обрабатывающая команду ~d. Изменяет длительность оповещения
     :param params: Полученные от пользователя параметры команды
-    :param notification_duration: Длительность одного оповещения в секундах
     :return: bool - изменены ли параметры
     """
     if not params.isdigit():
@@ -223,7 +201,6 @@ def change_duration_notification(params, notification_duration):
             "Ooops...",
             "Длительность оповещения должна быть цифрой (количество секунд)",
             NOTIFIER.error_ico_path,
-            notification_duration,
         )
         return False
     params = int(params)
@@ -236,16 +213,14 @@ def change_duration_notification(params, notification_duration):
         "Успешно!",
         "Длительность оповещения изменена",
         NOTIFIER.success_ico_path,
-        notification_duration,
     )
     return True
 
 
-def add_boss(params, notification_duration):
+def add_boss(params):
     """
     Функция, обрабатывающая команду ~b add. Добавляет нового босса
     :param params: Полученные от пользователя параметры команды
-    :param notification_duration: Длительность одного оповещения в секундах
     :return: bool - изменены ли параметры
     """
     params = params.rsplit(" ", 1)
@@ -254,7 +229,6 @@ def add_boss(params, notification_duration):
             "Ooops...",
             "Кулдаун респавна босса должен быть цифрой (количество минут)",
             NOTIFIER.error_ico_path,
-            notification_duration,
         )
         return False
     with open("settings.yaml", encoding="windows-1251") as config:
@@ -262,18 +236,15 @@ def add_boss(params, notification_duration):
     settings["bosses_cooldown"][params[0]] = int(params[1])
     with open("settings.yaml", "w", encoding="windows-1251") as config:
         yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
-    NOTIFIER.show_toast(
-        "Успешно!", "Босс добавлен", NOTIFIER.success_ico_path, notification_duration
-    )
+    NOTIFIER.show_toast("Успешно!", "Босс добавлен", NOTIFIER.success_ico_path)
     return True
 
 
-def skip_boss(params, boss_respawn, notification_duration):
+def skip_boss(params, boss_respawn):
     """
     Функция, обрабатывающая команду ~b skip. Пропускает босса
     :param params: Полученные от пользователя параметры команды
     :param boss_respawn: Словарь, ключ - имя босса, значение - время его следующего респавна
-    :param notification_duration: Длительность одного оповещения в секундах
     :return: bool - изменены ли параметры
     """
     one_boss = [params] == (params := [boss.strip() for boss in params.split(",")])
@@ -283,7 +254,6 @@ def skip_boss(params, boss_respawn, notification_duration):
                 "Ooops...",
                 "Указано некорректное имя босса",
                 NOTIFIER.error_ico_path,
-                notification_duration,
             )
             return False
         del boss_respawn[boss]
@@ -292,23 +262,20 @@ def skip_boss(params, boss_respawn, notification_duration):
             "Успешно!",
             "Босс пропущен",
             NOTIFIER.success_ico_path,
-            notification_duration,
         )
     else:
         NOTIFIER.show_toast(
             "Успешно!",
             "Боссы пропущены",
             NOTIFIER.success_ico_path,
-            notification_duration,
         )
     return False
 
 
-def add_to_blacklist(params, notification_duration):
+def add_to_blacklist(params):
     """
     Функция, обрабатывающая команду ~bl add. Добавляет боссов в чёрный список
     :param params: Полученные от пользователя параметры команды
-    :param notification_duration: Длительность одного оповещения в секундах
     :return: True - параметры изменены
     """
     params = [boss.strip() for boss in params.split(",")]
@@ -324,16 +291,14 @@ def add_to_blacklist(params, notification_duration):
         "Успешно!",
         "Чёрный список обновлён",
         NOTIFIER.success_ico_path,
-        notification_duration,
     )
     return True
 
 
-def remove_from_blacklist(params, notification_duration):
+def remove_from_blacklist(params):
     """
     Функция, обрабатывающая команду ~bl remove. Удаляет боссов из чёрного списка
     :param params: Полученные от пользователя параметры команды
-    :param notification_duration: Длительность одного оповещения в секундах
     :return: True - параметры изменены
     """
     params = [boss.strip() for boss in params.split(",")]
@@ -348,20 +313,16 @@ def remove_from_blacklist(params, notification_duration):
         "Успешно!",
         "Чёрный список обновлён",
         NOTIFIER.success_ico_path,
-        notification_duration,
     )
     return True
 
 
-def processing_line_with_boss(
-    match, boss_respawn, bosses_cooldown, notification_duration
-):
+def processing_line_with_boss(match, boss_respawn, bosses_cooldown):
     """
     Функция, обрабатывающая строку с информацией об убийстве босса
     :param match: Найденное совпадение в строке с регулярным выражением
     :param boss_respawn: Словарь, ключ - имя босса, значение - время его следующего респавна
     :param bosses_cooldown: Словарь, ключ - имя босса, значение - его кулдаун
-    :param notification_duration: Длительность одного оповещения в секундах
     :return: None
     """
     kill_time = time.fromisoformat(match.group(1))
@@ -372,16 +333,14 @@ def processing_line_with_boss(
             "Ooops...",
             f"Босса '{name}' нет в списке. Добавьте его",
             NOTIFIER.error_ico_path,
-            notification_duration,
         )
     else:
         boss_respawn[name] = kill_time + bosses_cooldown[name]
 
 
-def remind_about_service(notification_duration):
+def remind_about_service():
     """
     Функция, выводящая всплывающие уведомления о службах в церкви
-    :param notification_duration: Длительность уведомления
     :return: None
     """
     if datetime.now(ZoneInfo("Europe/Moscow")).strftime("%H:%M:%S") in {
@@ -394,17 +353,15 @@ def remind_about_service(notification_duration):
             "Служба",
             "Открылась запись на служение!",
             ICONS_PATH / "Служба.ico",
-            notification_duration,
         )
 
 
-def remind_about_mine(cooldown, stopwatch, name, notification_duration):
+def remind_about_mine(cooldown, stopwatch, name):
     """
     Функция, оповещающая об обновлении шахты за 3 секунды до этого
     :param cooldown: Кулдаун шахты в секундах
     :param stopwatch: Секундомер, считающий до кулдауна
     :param name: Название шахты
-    :param notification_duration: Длительность уведомления
     :return: Количество секунд на секундомере
     """
     if stopwatch == (cooldown - 3):
@@ -412,7 +369,6 @@ def remind_about_mine(cooldown, stopwatch, name, notification_duration):
             "Шахта",
             f'Шахта "{name}" обновилась',
             ICONS_PATH / f"{name}.ico",
-            notification_duration,
         )
         return stopwatch + 1
     if stopwatch == cooldown:
@@ -420,11 +376,10 @@ def remind_about_mine(cooldown, stopwatch, name, notification_duration):
     return stopwatch + 1
 
 
-def set_timer_to_mine(params, notification_duration):
+def set_timer_to_mine(params):
     """
     Функция, обрабатывающая команду ~m. Добавляет шахту в список для оповещения
     :param params: Полученные от пользователя параметры команды
-    :param notification_duration: Длительность одного оповещения в секундах
     :return: bool - изменены ли параметры
     """
     with open("settings.yaml", encoding="windows-1251") as config:
@@ -434,7 +389,6 @@ def set_timer_to_mine(params, notification_duration):
             "Ooops...",
             "Неправильное название шахты",
             NOTIFIER.error_ico_path,
-            notification_duration,
         )
         return False
     if "mines_notifications" not in settings:
@@ -443,9 +397,7 @@ def set_timer_to_mine(params, notification_duration):
         settings["mines_notifications"] += [params]
     with open("settings.yaml", "w", encoding="windows-1251") as config:
         yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
-    NOTIFIER.show_toast(
-        "Успешно!", "Шахта добавлена", NOTIFIER.success_ico_path, notification_duration
-    )
+    NOTIFIER.show_toast("Успешно!", "Шахта добавлена", NOTIFIER.success_ico_path)
     return True
 
 
@@ -472,16 +424,14 @@ def main():
         *mines_notifications,
     ) = load_settings_variables()
     mines_stopwatches = {mine: 0 for mine in mines_cooldown}
-    processing_old_logs(boss_respawn, bosses_cooldown, notification_duration)
+    processing_old_logs(boss_respawn, bosses_cooldown)
     with open(LOG_PATH / "latest.log", encoding="utf-8") as file:
         line = file.readline()
         nickname = line[line.find("Setting user: ") + 14 :].rstrip()
         while True:
             boss_notifications += 1
-            remind_about_service(notification_duration)
-            if processing_log(
-                file, boss_respawn, bosses_cooldown, notification_duration, nickname
-            ):
+            remind_about_service()
+            if processing_log(file, boss_respawn, bosses_cooldown, nickname):
                 (
                     bosses_cooldown,
                     blacklist,
@@ -496,14 +446,12 @@ def main():
                         mines_cooldown[mine],
                         mines_stopwatches[mine],
                         mine,
-                        notification_duration,
                     )
             if boss_notifications == 60:
                 print("-" * 57)
                 launch_boss_notifications(
                     boss_respawn,
                     blacklist,
-                    notification_duration,
                     colored,
                     RAINBOW_NAMES,
                 )

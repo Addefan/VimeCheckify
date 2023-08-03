@@ -8,14 +8,13 @@ class BaseNotifier(ABC):
     success_ico_path = ICONS_PATH / "success.ico"
 
     @abstractmethod
-    def show_toast(self, title="", message="", icon="", duration=3):
+    def show_toast(self, title, message, icon):
         """
         Функция, выводящая всплывающее уведомление
         :param os: Операционная система, на которой вызывается уведомление
         :param title: Заголовок уведомления
         :param message: Текст уведомления
         :param icon: Путь к иконке уведомления
-        :param duration: Длительность уведомления
         :return: None
         """
         ...
@@ -29,25 +28,28 @@ class BaseNotifier(ABC):
 
 
 class Notifier(BaseNotifier):
-    def __init__(self):
+    def __init__(self, notification_duration=3):
         self.import_toaster()
-        self.notifier = globals().get(f"{OS}Notifier", "ErrorNotifier")()
+        self.notification_duration = notification_duration
+        self.notifier = globals().get(f"{OS}Notifier", "ErrorNotifier")(
+            notification_duration
+        )
 
-    def show_toast(self, title="", message="", icon="", duration=3):
-        return self.notifier.show_toast(title, message, icon, duration)
+    def show_toast(self, title, message, icon):
+        self.notifier.show_toast(title, message, icon)
 
 
 class Windows10Notifier(BaseNotifier):
-    def show_toast(self, title="", message="", icon="", duration=3):
-        return ToastNotifier().show_toast(title, message, icon, duration)
+    def show_toast(self, title, message, icon):
+        ToastNotifier().show_toast(title, message, icon, self.notification_duration)
 
 
 class Windows11Notifier(BaseNotifier):
-    def show_toast(self, title="", message="", icon="", duration=3):
+    def show_toast(self, title, message, icon):
         icon = {"src": icon, "placement": "appLogoOverride"}
-        return toast(title, message, icon=icon, duration=duration)
+        return toast(title, message, icon=icon, duration=self.notification_duration)
 
 
 class ErrorNotifier(BaseNotifier):
-    def show_toast(self, title="", message="", icon="", duration=3):
+    def show_toast(self, title, message, icon):
         print("Извините, ваша операционная система не поддерживается для оповещений")

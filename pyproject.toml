@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "vimecheckify"
+version = "1.0.0"
+description = "Чекер для режима Prison на сервере VimeWorld для Windows 10/11"
+authors = ["Addefan <addefan@mail.ru>"]
+license = "AGPL-3.0-only"
+readme = "README.md"
+classifiers = [
+    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
+]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+win10toast = {version = "~0.9", markers = "sys_platform == 'win32' and platform_release == '10'"}
+win11toast = {version = "~0.32", markers = "sys_platform == 'win32' and platform_release == '11'"}
+PyYAML = "~6.0"
+pytz = "~2023.3"
+
+[tool.poetry.group.dev.dependencies]
+pyinstaller = "~5.13.0"
+black = "~23.3.0"
+pre-commit = "~3.3.3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

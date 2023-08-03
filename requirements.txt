@@ -1,4 +1,0 @@
-win10toast==0.9
-win11toast==0.29
-PyYAML==6.0
-pytz==2022.2.1

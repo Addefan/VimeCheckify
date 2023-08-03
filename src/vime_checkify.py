@@ -19,21 +19,26 @@ from win11toast import toast
 import yaml
 import pytz
 
-LOG_PATH = path.join(Path.home(), "AppData", "Roaming", ".vimeworld", "minigames", "logs")
+LOG_PATH = path.join(
+    Path.home(), "AppData", "Roaming", ".vimeworld", "minigames", "logs"
+)
 OS = platform.system() + platform.release()
-RAINBOW_NAMES = {"Королевский зомби": "\033[37mКоролевский зомби\033[0m",
-                 "Холуй": "\033[37mХолуй\033[0m",
-                 "Сточный слизень": "\033[32mСточный слизень\033[0m",
-                 "Фенрир": "\033[31mФенрир\033[0m",
-                 "Всадники апокалипсиса": "\033[37mВсадники апокалипсиса\033[0m",
-                 "Матка": "\033[32mМатка\033[0m",
-                 "Коровка из Коровёнки": "\033[31mК\033[33mор\033[32mо\033[36mв\033[34mк\033[33mа"
-                                         " \033[31mи\033[33mз К\033[32mо\033[36mр\033[34mо\033"
-                                         "[35mв\033[31mё\033[33mнк\033[32mи\033[0m",
-                 "Левиафан": "\033[33mЛевиафан\033[0m", "Йети": "\033[36mЙети\033[0m",
-                 "Житель края": "\033[35mЖитель края\033[0m",
-                 "Небесный владыка": "\033[34mНебесный владыка\033[0m",
-                 "Хранитель подводного мира": "\033[36mХранитель подводного мира\033[0m"}
+RAINBOW_NAMES = {
+    "Королевский зомби": "\033[37mКоролевский зомби\033[0m",
+    "Холуй": "\033[37mХолуй\033[0m",
+    "Сточный слизень": "\033[32mСточный слизень\033[0m",
+    "Фенрир": "\033[31mФенрир\033[0m",
+    "Всадники апокалипсиса": "\033[37mВсадники апокалипсиса\033[0m",
+    "Матка": "\033[32mМатка\033[0m",
+    "Коровка из Коровёнки": "\033[31mК\033[33mор\033[32mо\033[36mв\033[34mк\033[33mа"
+    " \033[31mи\033[33mз К\033[32mо\033[36mр\033[34mо\033"
+    "[35mв\033[31mё\033[33mнк\033[32mи\033[0m",
+    "Левиафан": "\033[33mЛевиафан\033[0m",
+    "Йети": "\033[36mЙети\033[0m",
+    "Житель края": "\033[35mЖитель края\033[0m",
+    "Небесный владыка": "\033[34mНебесный владыка\033[0m",
+    "Хранитель подводного мира": "\033[36mХранитель подводного мира\033[0m",
+}
 
 
 def processing_old_logs(boss_respawn, bosses_cooldown, notification_duration):
@@ -46,11 +51,15 @@ def processing_old_logs(boss_respawn, bosses_cooldown, notification_duration):
     """
     log_gz_names = (filename for filename in listdir(LOG_PATH) if validate_gz(filename))
     for log_gz_name in log_gz_names:
-        with gzip.open(path.join(LOG_PATH, log_gz_name), "rt", encoding="utf-8") as file:
+        with gzip.open(
+            path.join(LOG_PATH, log_gz_name), "rt", encoding="utf-8"
+        ) as file:
             processing_log(file, boss_respawn, bosses_cooldown, notification_duration)
 
 
-def processing_log(file, boss_respawn, bosses_cooldown, notification_duration, nickname=""):
+def processing_log(
+    file, boss_respawn, bosses_cooldown, notification_duration, nickname=""
+):
     """
     Функция, обрабатывающая log-файл и обновляет информацию о боссах и изменяет настройки
     :param file: Открытый файл логов
@@ -61,53 +70,90 @@ def processing_log(file, boss_respawn, bosses_cooldown, notification_duration, n
     :return: bool - были ли изменены настройки
     """
     settings_changed = False
-    boss_pattern = re.compile(r"\[(\d\d:\d\d:\d\d)\] \[Client thread/INFO\]: "
-                              r"\[CHAT\] (Все )?([А-Яа-яЁё ]+) был[аи]? повержен[ыа]? за")
-    command_pattern = re.compile(fr"\[(\d\d:\d\d:\d\d)\] \[Client thread/INFO\]: "
-                                 fr"\[CHAT\] .*{nickname}.*[:>] ~([-a-z+ ]+)([)(А-Яа-яЁё, \d]+)")
+    boss_pattern = re.compile(
+        r"\[(\d\d:\d\d:\d\d)\] \[Client thread/INFO\]: "
+        r"\[CHAT\] (Все )?([А-Яа-яЁё ]+) был[аи]? повержен[ыа]? за"
+    )
+    command_pattern = re.compile(
+        rf"\[(\d\d:\d\d:\d\d)\] \[Client thread/INFO\]: "
+        rf"\[CHAT\] .*{nickname}.*[:>] ~([-a-z+ ]+)([)(А-Яа-яЁё, \d]+)"
+    )
     error_ico_path = path.join("icons", "error.ico")
     success_ico_path = path.join("icons", "success.ico")
     for line in file:
         if "был" in line and (match := boss_pattern.match(line)):
-            processing_line_with_boss(match, boss_respawn, bosses_cooldown, error_ico_path,
-                                      notification_duration)
-        if file.name.rsplit("\\", 1)[1] == "latest.log" and nickname in line and \
-                (match := command_pattern.match(line)):
+            processing_line_with_boss(
+                match,
+                boss_respawn,
+                bosses_cooldown,
+                error_ico_path,
+                notification_duration,
+            )
+        if (
+            file.name.rsplit("\\", 1)[1] == "latest.log"
+            and nickname in line
+            and (match := command_pattern.match(line))
+        ):
             command_time = time.fromisoformat(match.group(1))
-            command_time = datetime.combine(datetime.now().date(), command_time).timestamp()
+            command_time = datetime.combine(
+                datetime.now().date(), command_time
+            ).timestamp()
             command = match.group(2)[:-1]
             params = match.group(3)
             if datetime.now().timestamp() - command_time <= 120:
                 match command:
                     case "d":
-                        settings_changed = change_duration_notification(params, error_ico_path,
-                                                                        success_ico_path,
-                                                                        notification_duration)
+                        settings_changed = change_duration_notification(
+                            params,
+                            error_ico_path,
+                            success_ico_path,
+                            notification_duration,
+                        )
                     case "b add":
-                        settings_changed = add_boss(params, error_ico_path, success_ico_path,
-                                                    notification_duration)
+                        settings_changed = add_boss(
+                            params,
+                            error_ico_path,
+                            success_ico_path,
+                            notification_duration,
+                        )
                     case "b skip":
-                        settings_changed = skip_boss(params, error_ico_path, success_ico_path,
-                                                     boss_respawn, notification_duration)
+                        settings_changed = skip_boss(
+                            params,
+                            error_ico_path,
+                            success_ico_path,
+                            boss_respawn,
+                            notification_duration,
+                        )
                     case "bl add":
-                        settings_changed = add_to_blacklist(params, success_ico_path,
-                                                            notification_duration)
+                        settings_changed = add_to_blacklist(
+                            params, success_ico_path, notification_duration
+                        )
                     case "bl remove":
-                        settings_changed = remove_from_blacklist(params, success_ico_path,
-                                                                 notification_duration)
+                        settings_changed = remove_from_blacklist(
+                            params, success_ico_path, notification_duration
+                        )
                     case "m":
-                        settings_changed = set_timer_to_mine(params, error_ico_path,
-                                                             success_ico_path,
-                                                             notification_duration)
+                        settings_changed = set_timer_to_mine(
+                            params,
+                            error_ico_path,
+                            success_ico_path,
+                            notification_duration,
+                        )
                     case _:
-                        show_toast(OS, "Ooops...", "Неправильная команда", error_ico_path,
-                                   notification_duration)
+                        show_toast(
+                            OS,
+                            "Ooops...",
+                            "Неправильная команда",
+                            error_ico_path,
+                            notification_duration,
+                        )
                         continue
     return settings_changed
 
 
-def launch_boss_notifications(boss_respawn, blacklist, notification_duration, colored,
-                              rainbow_names):
+def launch_boss_notifications(
+    boss_respawn, blacklist, notification_duration, colored, rainbow_names
+):
     """
     Функция, создающая и запускающая всплывающие оповещения о боссах
     :param boss_respawn: Словарь, ключ - имя босса, значение - время его следующего респавна
@@ -121,8 +167,13 @@ def launch_boss_notifications(boss_respawn, blacklist, notification_duration, co
     for boss, respawn_time in boss_respawn.items():
         for_print.append([boss, respawn_time])
         if boss not in blacklist and get_time() >= respawn_time:
-            show_toast(OS, "Босс", boss, path.join("icons", f"{boss}.ico"),
-                       notification_duration)
+            show_toast(
+                OS,
+                "Босс",
+                boss,
+                path.join("icons", f"{boss}.ico"),
+                notification_duration,
+            )
             sleep(0.1)
     for_print.sort(key=lambda pair: pair[1])
     for pair in for_print:
@@ -130,11 +181,17 @@ def launch_boss_notifications(boss_respawn, blacklist, notification_duration, co
         if colored:
             pair[0] = rainbow_names[pair[0]]
         if plural:
-            print(pair[0], "заспавнятся примерно в",
-                  datetime.fromtimestamp(pair[1]).strftime("%H:%M:%S"))
+            print(
+                pair[0],
+                "заспавнятся примерно в",
+                datetime.fromtimestamp(pair[1]).strftime("%H:%M:%S"),
+            )
         else:
-            print(pair[0], "заспавнится примерно в",
-                  datetime.fromtimestamp(pair[1]).strftime("%H:%M:%S"))
+            print(
+                pair[0],
+                "заспавнится примерно в",
+                datetime.fromtimestamp(pair[1]).strftime("%H:%M:%S"),
+            )
 
 
 def validate_gz(filename):
@@ -160,7 +217,9 @@ def load_settings_variables():
     with open("settings.yaml", encoding="windows-1251") as file:
         settings = yaml.safe_load(file)
     bosses_cooldown = settings["bosses_cooldown"]
-    bosses_cooldown = {name: cooldown * 60 for name, cooldown in bosses_cooldown.items()}
+    bosses_cooldown = {
+        name: cooldown * 60 for name, cooldown in bosses_cooldown.items()
+    }
     if "blacklist" in settings:
         blacklist = settings["blacklist"]
     else:
@@ -170,12 +229,20 @@ def load_settings_variables():
     colored = settings["colored"]
     if "mines_notifications" in settings:
         mines_notifications = settings["mines_notifications"]
-        return bosses_cooldown, blacklist, notification_duration, mines_cooldown, \
-               colored, mines_notifications
+        return (
+            bosses_cooldown,
+            blacklist,
+            notification_duration,
+            mines_cooldown,
+            colored,
+            mines_notifications,
+        )
     return bosses_cooldown, blacklist, notification_duration, mines_cooldown, colored
 
 
-def change_duration_notification(params, error_ico_path, success_ico_path, notification_duration):
+def change_duration_notification(
+    params, error_ico_path, success_ico_path, notification_duration
+):
     """
     Функция, обрабатывающая команду ~d. Изменяет длительность оповещения
     :param params: Полученные от пользователя параметры команды
@@ -185,8 +252,13 @@ def change_duration_notification(params, error_ico_path, success_ico_path, notif
     :return: bool - изменены ли параметры
     """
     if not params.isdigit():
-        show_toast(OS, "Ooops...", "Длительность оповещения должна быть цифрой (количество секунд)",
-                   error_ico_path, notification_duration)
+        show_toast(
+            OS,
+            "Ooops...",
+            "Длительность оповещения должна быть цифрой (количество секунд)",
+            error_ico_path,
+            notification_duration,
+        )
         return False
     params = int(params)
     with open("settings.yaml", encoding="windows-1251") as config:
@@ -194,8 +266,13 @@ def change_duration_notification(params, error_ico_path, success_ico_path, notif
     settings["notification_duration"] = params
     with open("settings.yaml", "w", encoding="windows-1251") as config:
         yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
-    show_toast(OS, "Успешно!", "Длительность оповещения изменена", success_ico_path,
-               notification_duration)
+    show_toast(
+        OS,
+        "Успешно!",
+        "Длительность оповещения изменена",
+        success_ico_path,
+        notification_duration,
+    )
     return True
 
 
@@ -210,8 +287,13 @@ def add_boss(params, error_ico_path, success_ico_path, notification_duration):
     """
     params = params.rsplit(" ", 1)
     if not params[1].isdigit():
-        show_toast(OS, "Ooops...", "Кулдаун респавна босса должен быть цифрой (количество минут)",
-                   error_ico_path, notification_duration)
+        show_toast(
+            OS,
+            "Ooops...",
+            "Кулдаун респавна босса должен быть цифрой (количество минут)",
+            error_ico_path,
+            notification_duration,
+        )
         return False
     with open("settings.yaml", encoding="windows-1251") as config:
         settings = yaml.safe_load(config)
@@ -222,7 +304,9 @@ def add_boss(params, error_ico_path, success_ico_path, notification_duration):
     return True
 
 
-def skip_boss(params, error_ico_path, success_ico_path, boss_respawn, notification_duration):
+def skip_boss(
+    params, error_ico_path, success_ico_path, boss_respawn, notification_duration
+):
     """
     Функция, обрабатывающая команду ~b skip. Пропускает босса
     :param params: Полученные от пользователя параметры команды
@@ -235,14 +319,23 @@ def skip_boss(params, error_ico_path, success_ico_path, boss_respawn, notificati
     one_boss = [params] == (params := [boss.strip() for boss in params.split(",")])
     for boss in params:
         if boss not in boss_respawn:
-            show_toast(OS, "Ooops...", "Указано некорректное имя босса", error_ico_path,
-                       notification_duration)
+            show_toast(
+                OS,
+                "Ooops...",
+                "Указано некорректное имя босса",
+                error_ico_path,
+                notification_duration,
+            )
             return False
         del boss_respawn[boss]
     if one_boss:
-        show_toast(OS, "Успешно!", "Босс пропущен", success_ico_path, notification_duration)
+        show_toast(
+            OS, "Успешно!", "Босс пропущен", success_ico_path, notification_duration
+        )
     else:
-        show_toast(OS, "Успешно!", "Боссы пропущены", success_ico_path, notification_duration)
+        show_toast(
+            OS, "Успешно!", "Боссы пропущены", success_ico_path, notification_duration
+        )
     return False
 
 
@@ -263,7 +356,13 @@ def add_to_blacklist(params, success_ico_path, notification_duration):
         settings["blacklist"] += params
     with open("settings.yaml", "w", encoding="windows-1251") as config:
         yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
-    show_toast(OS, "Успешно!", "Чёрный список обновлён", success_ico_path, notification_duration)
+    show_toast(
+        OS,
+        "Успешно!",
+        "Чёрный список обновлён",
+        success_ico_path,
+        notification_duration,
+    )
     return True
 
 
@@ -278,15 +377,24 @@ def remove_from_blacklist(params, success_ico_path, notification_duration):
     params = [boss.strip() for boss in params.split(",")]
     with open("settings.yaml", encoding="windows-1251") as config:
         settings = yaml.safe_load(config)
-    settings["blacklist"] = [name for name in settings["blacklist"] if name not in params]
+    settings["blacklist"] = [
+        name for name in settings["blacklist"] if name not in params
+    ]
     with open("settings.yaml", "w", encoding="windows-1251") as config:
         yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
-    show_toast(OS, "Успешно!", "Чёрный список обновлён", success_ico_path, notification_duration)
+    show_toast(
+        OS,
+        "Успешно!",
+        "Чёрный список обновлён",
+        success_ico_path,
+        notification_duration,
+    )
     return True
 
 
-def processing_line_with_boss(match, boss_respawn, bosses_cooldown, error_ico_path,
-                              notification_duration):
+def processing_line_with_boss(
+    match, boss_respawn, bosses_cooldown, error_ico_path, notification_duration
+):
     """
     Функция, обрабатывающая строку с информацией об убийстве босса
     :param match: Найденное совпадение в строке с регулярным выражением
@@ -300,8 +408,13 @@ def processing_line_with_boss(match, boss_respawn, bosses_cooldown, error_ico_pa
     kill_time = datetime.combine(datetime.now().date(), kill_time).timestamp()
     name = match.group(3)
     if name not in bosses_cooldown:
-        show_toast(OS, "Ooops...", f"Босса '{name}' нет в списке. Добавьте его", error_ico_path,
-                   notification_duration)
+        show_toast(
+            OS,
+            "Ooops...",
+            f"Босса '{name}' нет в списке. Добавьте его",
+            error_ico_path,
+            notification_duration,
+        )
     else:
         boss_respawn[name] = kill_time + bosses_cooldown[name]
 
@@ -320,10 +433,7 @@ def show_toast(os, title="", message="", icon="", duration=3):
         case "Windows10":
             ToastNotifier().show_toast(title, message, icon, duration)
         case "Windows11":
-            icon = {
-                "src": icon,
-                "placement": "appLogoOverride"
-            }
+            icon = {"src": icon, "placement": "appLogoOverride"}
             toast(title, message, icon=icon, duration=duration)
         case _:
             print("Извините, ваша операционная система не поддерживается")
@@ -337,12 +447,19 @@ def remind_about_service(notification_duration):
     :param notification_duration: Длительность уведомления
     :return: None
     """
-    if datetime.now(pytz.timezone("Europe/Moscow")).strftime("%H:%M:%S") in {"06:56:00",
-                                                                             "12:56:00",
-                                                                             "18:56:00",
-                                                                             "00:56:00"}:
-        show_toast(OS, "Служба", "Открылась запись на служение!",
-                   path.join("icons", "Служба.ico"), notification_duration)
+    if datetime.now(pytz.timezone("Europe/Moscow")).strftime("%H:%M:%S") in {
+        "06:56:00",
+        "12:56:00",
+        "18:56:00",
+        "00:56:00",
+    }:
+        show_toast(
+            OS,
+            "Служба",
+            "Открылась запись на служение!",
+            path.join("icons", "Служба.ico"),
+            notification_duration,
+        )
 
 
 def remind_about_mine(cooldown, stopwatch, name, notification_duration):
@@ -355,8 +472,13 @@ def remind_about_mine(cooldown, stopwatch, name, notification_duration):
     :return: Количество секунд на секундомере
     """
     if stopwatch == (cooldown - 3):
-        show_toast(OS, "Шахта", f'Шахта "{name}" обновилась',
-                   path.join("icons", f"{name}.ico"), notification_duration)
+        show_toast(
+            OS,
+            "Шахта",
+            f'Шахта "{name}" обновилась',
+            path.join("icons", f"{name}.ico"),
+            notification_duration,
+        )
         return stopwatch + 1
     if stopwatch == cooldown:
         return 0
@@ -375,8 +497,13 @@ def set_timer_to_mine(params, error_ico_path, success_ico_path, notification_dur
     with open("settings.yaml", encoding="windows-1251") as config:
         settings = yaml.safe_load(config)
     if params not in settings["mines_cooldown"]:
-        show_toast(OS, "Ooops...", "Неправильное название шахты", error_ico_path,
-                   notification_duration)
+        show_toast(
+            OS,
+            "Ooops...",
+            "Неправильное название шахты",
+            error_ico_path,
+            notification_duration,
+        )
         return False
     if "mines_notifications" not in settings:
         settings["mines_notifications"] = [params]
@@ -384,7 +511,9 @@ def set_timer_to_mine(params, error_ico_path, success_ico_path, notification_dur
         settings["mines_notifications"] += [params]
     with open("settings.yaml", "w", encoding="windows-1251") as config:
         yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
-    show_toast(OS, "Успешно!", "Шахта добавлена", success_ico_path, notification_duration)
+    show_toast(
+        OS, "Успешно!", "Шахта добавлена", success_ico_path, notification_duration
+    )
     return True
 
 
@@ -402,28 +531,50 @@ def main():
         yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
     boss_respawn = {}
     boss_notifications = 59
-    bosses_cooldown, blacklist, notification_duration, \
-    mines_cooldown, colored, *mines_notifications = load_settings_variables()
+    (
+        bosses_cooldown,
+        blacklist,
+        notification_duration,
+        mines_cooldown,
+        colored,
+        *mines_notifications,
+    ) = load_settings_variables()
     mines_stopwatches = {mine: 0 for mine in mines_cooldown}
     processing_old_logs(boss_respawn, bosses_cooldown, notification_duration)
-    with open(path.join(LOG_PATH, "latest.log"), encoding='utf-8') as file:
+    with open(path.join(LOG_PATH, "latest.log"), encoding="utf-8") as file:
         line = file.readline()
-        nickname = line[line.find("Setting user: ") + 14:].rstrip()
+        nickname = line[line.find("Setting user: ") + 14 :].rstrip()
         while True:
             boss_notifications += 1
             remind_about_service(notification_duration)
-            if processing_log(file, boss_respawn, bosses_cooldown, notification_duration, nickname):
-                bosses_cooldown, blacklist, notification_duration, \
-                mines_cooldown, colored, *mines_notifications = load_settings_variables()
+            if processing_log(
+                file, boss_respawn, bosses_cooldown, notification_duration, nickname
+            ):
+                (
+                    bosses_cooldown,
+                    blacklist,
+                    notification_duration,
+                    mines_cooldown,
+                    colored,
+                    *mines_notifications,
+                ) = load_settings_variables()
             if mines_notifications:
                 for mine in mines_notifications[0]:
-                    mines_stopwatches[mine] = remind_about_mine(mines_cooldown[mine],
-                                                                mines_stopwatches[mine],
-                                                                mine, notification_duration)
+                    mines_stopwatches[mine] = remind_about_mine(
+                        mines_cooldown[mine],
+                        mines_stopwatches[mine],
+                        mine,
+                        notification_duration,
+                    )
             if boss_notifications == 60:
                 print("-" * 57)
-                launch_boss_notifications(boss_respawn, blacklist, notification_duration,
-                                          colored, RAINBOW_NAMES)
+                launch_boss_notifications(
+                    boss_respawn,
+                    blacklist,
+                    notification_duration,
+                    colored,
+                    RAINBOW_NAMES,
+                )
                 boss_notifications = 0
             sleep(1)
 

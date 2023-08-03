@@ -19,6 +19,9 @@ from win11toast import toast
 import yaml
 
 from src.constants import LOG_PATH, OS, RAINBOW_NAMES, ICONS_PATH
+from src.notifier import Notifier
+
+NOTIFIER = Notifier()
 
 
 def processing_old_logs(boss_respawn, bosses_cooldown, notification_duration):
@@ -58,15 +61,13 @@ def processing_log(
         rf"\[(\d\d:\d\d:\d\d)\] \[Client thread/INFO\]: "
         rf"\[CHAT\] .*{nickname}.*[:>] ~([-a-z+ ]+)([)(А-Яа-яЁё, \d]+)"
     )
-    error_ico_path = ICONS_PATH / "error.ico"
-    success_ico_path = ICONS_PATH / "success.ico"
+
     for line in file:
         if "был" in line and (match := boss_pattern.match(line)):
             processing_line_with_boss(
                 match,
                 boss_respawn,
                 bosses_cooldown,
-                error_ico_path,
                 notification_duration,
             )
         if (
@@ -85,46 +86,37 @@ def processing_log(
                     case "d":
                         settings_changed = change_duration_notification(
                             params,
-                            error_ico_path,
-                            success_ico_path,
                             notification_duration,
                         )
                     case "b add":
                         settings_changed = add_boss(
                             params,
-                            error_ico_path,
-                            success_ico_path,
                             notification_duration,
                         )
                     case "b skip":
                         settings_changed = skip_boss(
                             params,
-                            error_ico_path,
-                            success_ico_path,
                             boss_respawn,
                             notification_duration,
                         )
                     case "bl add":
                         settings_changed = add_to_blacklist(
-                            params, success_ico_path, notification_duration
+                            params, notification_duration
                         )
                     case "bl remove":
                         settings_changed = remove_from_blacklist(
-                            params, success_ico_path, notification_duration
+                            params, notification_duration
                         )
                     case "m":
                         settings_changed = set_timer_to_mine(
                             params,
-                            error_ico_path,
-                            success_ico_path,
                             notification_duration,
                         )
                     case _:
-                        show_toast(
-                            OS,
+                        NOTIFIER.show_toast(
                             "Ooops...",
                             "Неправильная команда",
-                            error_ico_path,
+                            NOTIFIER.error_ico_path,
                             notification_duration,
                         )
                         continue
@@ -147,8 +139,7 @@ def launch_boss_notifications(
     for boss, respawn_time in boss_respawn.items():
         for_print.append([boss, respawn_time])
         if boss not in blacklist and get_time() >= respawn_time:
-            show_toast(
-                OS,
+            NOTIFIER.show_toast(
                 "Босс",
                 boss,
                 ICONS_PATH / f"{boss}.ico",
@@ -220,23 +211,18 @@ def load_settings_variables():
     return bosses_cooldown, blacklist, notification_duration, mines_cooldown, colored
 
 
-def change_duration_notification(
-    params, error_ico_path, success_ico_path, notification_duration
-):
+def change_duration_notification(params, notification_duration):
     """
     Функция, обрабатывающая команду ~d. Изменяет длительность оповещения
     :param params: Полученные от пользователя параметры команды
-    :param error_ico_path: Путь к иконке ошибки
-    :param success_ico_path: Путь к иконке успеха
     :param notification_duration: Длительность одного оповещения в секундах
     :return: bool - изменены ли параметры
     """
     if not params.isdigit():
-        show_toast(
-            OS,
+        NOTIFIER.show_toast(
             "Ooops...",
             "Длительность оповещения должна быть цифрой (количество секунд)",
-            error_ico_path,
+            NOTIFIER.error_ico_path,
             notification_duration,
         )
         return False
@@ -246,32 +232,28 @@ def change_duration_notification(
     settings["notification_duration"] = params
     with open("settings.yaml", "w", encoding="windows-1251") as config:
         yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
-    show_toast(
-        OS,
+    NOTIFIER.show_toast(
         "Успешно!",
         "Длительность оповещения изменена",
-        success_ico_path,
+        NOTIFIER.success_ico_path,
         notification_duration,
     )
     return True
 
 
-def add_boss(params, error_ico_path, success_ico_path, notification_duration):
+def add_boss(params, notification_duration):
     """
     Функция, обрабатывающая команду ~b add. Добавляет нового босса
     :param params: Полученные от пользователя параметры команды
-    :param error_ico_path: Путь к иконке ошибки
-    :param success_ico_path: Путь к иконке успеха
     :param notification_duration: Длительность одного оповещения в секундах
     :return: bool - изменены ли параметры
     """
     params = params.rsplit(" ", 1)
     if not params[1].isdigit():
-        show_toast(
-            OS,
+        NOTIFIER.show_toast(
             "Ooops...",
             "Кулдаун респавна босса должен быть цифрой (количество минут)",
-            error_ico_path,
+            NOTIFIER.error_ico_path,
             notification_duration,
         )
         return False
@@ -280,18 +262,16 @@ def add_boss(params, error_ico_path, success_ico_path, notification_duration):
     settings["bosses_cooldown"][params[0]] = int(params[1])
     with open("settings.yaml", "w", encoding="windows-1251") as config:
         yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
-    show_toast(OS, "Успешно!", "Босс добавлен", success_ico_path, notification_duration)
+    NOTIFIER.show_toast(
+        "Успешно!", "Босс добавлен", NOTIFIER.success_ico_path, notification_duration
+    )
     return True
 
 
-def skip_boss(
-    params, error_ico_path, success_ico_path, boss_respawn, notification_duration
-):
+def skip_boss(params, boss_respawn, notification_duration):
     """
     Функция, обрабатывающая команду ~b skip. Пропускает босса
     :param params: Полученные от пользователя параметры команды
-    :param error_ico_path: Путь к иконке ошибки
-    :param success_ico_path: Путь к иконке успеха
     :param boss_respawn: Словарь, ключ - имя босса, значение - время его следующего респавна
     :param notification_duration: Длительность одного оповещения в секундах
     :return: bool - изменены ли параметры
@@ -299,31 +279,35 @@ def skip_boss(
     one_boss = [params] == (params := [boss.strip() for boss in params.split(",")])
     for boss in params:
         if boss not in boss_respawn:
-            show_toast(
-                OS,
+            NOTIFIER.show_toast(
                 "Ooops...",
                 "Указано некорректное имя босса",
-                error_ico_path,
+                NOTIFIER.error_ico_path,
                 notification_duration,
             )
             return False
         del boss_respawn[boss]
     if one_boss:
-        show_toast(
-            OS, "Успешно!", "Босс пропущен", success_ico_path, notification_duration
+        NOTIFIER.show_toast(
+            "Успешно!",
+            "Босс пропущен",
+            NOTIFIER.success_ico_path,
+            notification_duration,
         )
     else:
-        show_toast(
-            OS, "Успешно!", "Боссы пропущены", success_ico_path, notification_duration
+        NOTIFIER.show_toast(
+            "Успешно!",
+            "Боссы пропущены",
+            NOTIFIER.success_ico_path,
+            notification_duration,
         )
     return False
 
 
-def add_to_blacklist(params, success_ico_path, notification_duration):
+def add_to_blacklist(params, notification_duration):
     """
     Функция, обрабатывающая команду ~bl add. Добавляет боссов в чёрный список
     :param params: Полученные от пользователя параметры команды
-    :param success_ico_path: Путь к иконке успеха
     :param notification_duration: Длительность одного оповещения в секундах
     :return: True - параметры изменены
     """
@@ -336,21 +320,19 @@ def add_to_blacklist(params, success_ico_path, notification_duration):
         settings["blacklist"] += params
     with open("settings.yaml", "w", encoding="windows-1251") as config:
         yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
-    show_toast(
-        OS,
+    NOTIFIER.show_toast(
         "Успешно!",
         "Чёрный список обновлён",
-        success_ico_path,
+        NOTIFIER.success_ico_path,
         notification_duration,
     )
     return True
 
 
-def remove_from_blacklist(params, success_ico_path, notification_duration):
+def remove_from_blacklist(params, notification_duration):
     """
     Функция, обрабатывающая команду ~bl remove. Удаляет боссов из чёрного списка
     :param params: Полученные от пользователя параметры команды
-    :param success_ico_path: Путь к иконке успеха
     :param notification_duration: Длительность одного оповещения в секундах
     :return: True - параметры изменены
     """
@@ -362,25 +344,23 @@ def remove_from_blacklist(params, success_ico_path, notification_duration):
     ]
     with open("settings.yaml", "w", encoding="windows-1251") as config:
         yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
-    show_toast(
-        OS,
+    NOTIFIER.show_toast(
         "Успешно!",
         "Чёрный список обновлён",
-        success_ico_path,
+        NOTIFIER.success_ico_path,
         notification_duration,
     )
     return True
 
 
 def processing_line_with_boss(
-    match, boss_respawn, bosses_cooldown, error_ico_path, notification_duration
+    match, boss_respawn, bosses_cooldown, notification_duration
 ):
     """
     Функция, обрабатывающая строку с информацией об убийстве босса
     :param match: Найденное совпадение в строке с регулярным выражением
     :param boss_respawn: Словарь, ключ - имя босса, значение - время его следующего респавна
     :param bosses_cooldown: Словарь, ключ - имя босса, значение - его кулдаун
-    :param error_ico_path: Путь к иконке ошибки
     :param notification_duration: Длительность одного оповещения в секундах
     :return: None
     """
@@ -388,37 +368,14 @@ def processing_line_with_boss(
     kill_time = datetime.combine(datetime.now().date(), kill_time).timestamp()
     name = match.group(3)
     if name not in bosses_cooldown:
-        show_toast(
-            OS,
+        NOTIFIER.show_toast(
             "Ooops...",
             f"Босса '{name}' нет в списке. Добавьте его",
-            error_ico_path,
+            NOTIFIER.error_ico_path,
             notification_duration,
         )
     else:
         boss_respawn[name] = kill_time + bosses_cooldown[name]
-
-
-def show_toast(os, title="", message="", icon="", duration=3):
-    """
-    Функция, выводящая всплывающее уведомление
-    :param os: Операционная система, на которой вызывается уведомление
-    :param title: Заголовок уведомления
-    :param message: Текст уведомления
-    :param icon: Путь к иконке уведомления
-    :param duration: Длительность уведомления
-    :return: None
-    """
-    match os:
-        case "Windows10":
-            ToastNotifier().show_toast(title, message, icon, duration)
-        case "Windows11":
-            icon = {"src": icon, "placement": "appLogoOverride"}
-            toast(title, message, icon=icon, duration=duration)
-        case _:
-            print("Извините, ваша операционная система не поддерживается")
-            sleep(3)
-            exit()
 
 
 def remind_about_service(notification_duration):
@@ -433,8 +390,7 @@ def remind_about_service(notification_duration):
         "18:56:00",
         "00:56:00",
     }:
-        show_toast(
-            OS,
+        NOTIFIER.show_toast(
             "Служба",
             "Открылась запись на служение!",
             ICONS_PATH / "Служба.ico",
@@ -452,8 +408,7 @@ def remind_about_mine(cooldown, stopwatch, name, notification_duration):
     :return: Количество секунд на секундомере
     """
     if stopwatch == (cooldown - 3):
-        show_toast(
-            OS,
+        NOTIFIER.show_toast(
             "Шахта",
             f'Шахта "{name}" обновилась',
             ICONS_PATH / f"{name}.ico",
@@ -465,23 +420,20 @@ def remind_about_mine(cooldown, stopwatch, name, notification_duration):
     return stopwatch + 1
 
 
-def set_timer_to_mine(params, error_ico_path, success_ico_path, notification_duration):
+def set_timer_to_mine(params, notification_duration):
     """
     Функция, обрабатывающая команду ~m. Добавляет шахту в список для оповещения
     :param params: Полученные от пользователя параметры команды
-    :param error_ico_path: Путь к иконке ошибки
-    :param success_ico_path: Путь к иконке успеха
     :param notification_duration: Длительность одного оповещения в секундах
     :return: bool - изменены ли параметры
     """
     with open("settings.yaml", encoding="windows-1251") as config:
         settings = yaml.safe_load(config)
     if params not in settings["mines_cooldown"]:
-        show_toast(
-            OS,
+        NOTIFIER.show_toast(
             "Ooops...",
             "Неправильное название шахты",
-            error_ico_path,
+            NOTIFIER.error_ico_path,
             notification_duration,
         )
         return False
@@ -491,8 +443,8 @@ def set_timer_to_mine(params, error_ico_path, success_ico_path, notification_dur
         settings["mines_notifications"] += [params]
     with open("settings.yaml", "w", encoding="windows-1251") as config:
         yaml.safe_dump(settings, config, indent=4, allow_unicode=True, sort_keys=False)
-    show_toast(
-        OS, "Успешно!", "Шахта добавлена", success_ico_path, notification_duration
+    NOTIFIER.show_toast(
+        "Успешно!", "Шахта добавлена", NOTIFIER.success_ico_path, notification_duration
     )
     return True
 

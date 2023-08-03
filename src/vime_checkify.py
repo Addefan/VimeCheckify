@@ -8,7 +8,7 @@
 from time import time as get_time
 from time import sleep
 from datetime import time, datetime
-from os import path, listdir, system
+from os import system
 from sys import exit
 import re
 import gzip
@@ -18,7 +18,7 @@ from win10toast import ToastNotifier
 from win11toast import toast
 import yaml
 
-from src.constants import LOG_PATH, OS, RAINBOW_NAMES
+from src.constants import LOG_PATH, OS, RAINBOW_NAMES, ICONS_PATH
 
 
 def processing_old_logs(boss_respawn, bosses_cooldown, notification_duration):
@@ -29,11 +29,11 @@ def processing_old_logs(boss_respawn, bosses_cooldown, notification_duration):
     :param notification_duration: Длительность одного оповещения в секундах
     :return: None
     """
-    log_gz_names = (filename for filename in listdir(LOG_PATH) if validate_gz(filename))
+    log_gz_names = (
+        filename for filename in LOG_PATH.iterdir() if validate_gz(filename)
+    )
     for log_gz_name in log_gz_names:
-        with gzip.open(
-            path.join(LOG_PATH, log_gz_name), "rt", encoding="utf-8"
-        ) as file:
+        with gzip.open(LOG_PATH / log_gz_name, "rt", encoding="utf-8") as file:
             processing_log(file, boss_respawn, bosses_cooldown, notification_duration)
 
 
@@ -58,8 +58,8 @@ def processing_log(
         rf"\[(\d\d:\d\d:\d\d)\] \[Client thread/INFO\]: "
         rf"\[CHAT\] .*{nickname}.*[:>] ~([-a-z+ ]+)([)(А-Яа-яЁё, \d]+)"
     )
-    error_ico_path = path.join("icons", "error.ico")
-    success_ico_path = path.join("icons", "success.ico")
+    error_ico_path = ICONS_PATH / "error.ico"
+    success_ico_path = ICONS_PATH / "success.ico"
     for line in file:
         if "был" in line and (match := boss_pattern.match(line)):
             processing_line_with_boss(
@@ -151,7 +151,7 @@ def launch_boss_notifications(
                 OS,
                 "Босс",
                 boss,
-                path.join("icons", f"{boss}.ico"),
+                ICONS_PATH / f"{boss}.ico",
                 notification_duration,
             )
             sleep(0.1)
@@ -180,7 +180,7 @@ def validate_gz(filename):
     :param filename: Название валидируемого файла
     :return: bool - удовлетворяет ли название требованиям
     """
-    body, tail = path.splitext(filename)
+    body, tail = filename.stem, filename.suffix
     if not body.startswith(datetime.now().strftime("%Y-%m-%d")):
         return False
     if not tail == ".gz":
@@ -437,7 +437,7 @@ def remind_about_service(notification_duration):
             OS,
             "Служба",
             "Открылась запись на служение!",
-            path.join("icons", "Служба.ico"),
+            ICONS_PATH / "Служба.ico",
             notification_duration,
         )
 
@@ -456,7 +456,7 @@ def remind_about_mine(cooldown, stopwatch, name, notification_duration):
             OS,
             "Шахта",
             f'Шахта "{name}" обновилась',
-            path.join("icons", f"{name}.ico"),
+            ICONS_PATH / f"{name}.ico",
             notification_duration,
         )
         return stopwatch + 1
@@ -521,7 +521,7 @@ def main():
     ) = load_settings_variables()
     mines_stopwatches = {mine: 0 for mine in mines_cooldown}
     processing_old_logs(boss_respawn, bosses_cooldown, notification_duration)
-    with open(path.join(LOG_PATH, "latest.log"), encoding="utf-8") as file:
+    with open(LOG_PATH / "latest.log", encoding="utf-8") as file:
         line = file.readline()
         nickname = line[line.find("Setting user: ") + 14 :].rstrip()
         while True:

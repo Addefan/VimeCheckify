@@ -1,11 +1,11 @@
 import platform
-from os import path
 from pathlib import Path
 
 OS = platform.system() + platform.release()
-LOG_PATH = path.join(
-    Path.home(), "AppData", "Roaming", ".vimeworld", "minigames", "logs"
-)
+
+SRC_PATH = Path(__file__).resolve().parent
+LOG_PATH = Path.home() / "AppData" / "Roaming" / ".vimeworld" / "minigames" / "logs"
+ICONS_PATH = SRC_PATH / "icons"
 
 RAINBOW_NAMES = {
     "Королевский зомби": "\033[37mКоролевский зомби\033[0m",
